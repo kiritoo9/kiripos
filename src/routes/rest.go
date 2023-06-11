@@ -31,6 +31,7 @@ func Init(router *gin.Engine) {
 		_users := authorized.Group(("/users"))
 		{
 			_users.GET("/", masters.UserList)
+			_users.GET("/:id", masters.UserDetail)
 			_users.POST("/", masters.UserInsert)
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -43,6 +44,17 @@ func UserList(c *gin.Context) {
 		return
 	}
 
+	var output []models.Users_Output
+	for i := 0; i < len(datas); i++ {
+		output = append(output, models.Users_Output{
+			Id:          datas[i].Id,
+			Fullname:    datas[i].Fullname,
+			Email:       datas[i].Email,
+			IsActive:    datas[i].IsActive,
+			CreatedDate: datas[i].CreatedDate,
+		})
+	}
+
 	var count int64
 	var totalPage float64
 	configs.DB.Model(&models.Users{}).Distinct("id").
@@ -60,22 +72,43 @@ func UserList(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Request Success",
-		"data":       datas,
+		"data":       output,
 		"pageActive": page,
 		"totalPage":  totalPage,
 	})
 }
 
-type UserForm struct {
-	Email    string    `json:"email" binding:"required"`
-	Password string    `json:"password"`
-	Fullname string    `json:"fullname" binding:"required"`
-	IsActive bool      `json:"is_active"`
-	RoleId   uuid.UUID `json:"role_id" binding:"required"`
+func UserDetail(c *gin.Context) {
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var data models.Users
+	res := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("id = ?", id).
+		Find(&data)
+
+	if res.RowsAffected <= 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": res.Error.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Request success",
+		"data":    data,
+	})
 }
 
 func UserInsert(c *gin.Context) {
-	var body UserForm
+	var body models.Users_Form
 
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -97,11 +130,12 @@ func UserInsert(c *gin.Context) {
 	body.Password = string(hash)
 
 	user := models.Users{
-		Id:       uuid.New(),
-		Email:    body.Email,
-		Password: body.Password,
-		Fullname: body.Fullname,
-		IsActive: body.IsActive,
+		Id:          uuid.New(),
+		Email:       body.Email,
+		Password:    body.Password,
+		Fullname:    body.Fullname,
+		IsActive:    body.IsActive,
+		CreatedDate: time.Now(),
 	}
 	result := configs.DB.Create(&user).Error
 	if result != nil {
