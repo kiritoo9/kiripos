@@ -1,11 +1,11 @@
-# About
-<p>Go-Gin Boilerplate</p>
+## About
+<p>Point of Sales</p>
+<small>Free small app to help your business</small>
 
-# Steps
+## Developer
 <ul>
-    <li><code>go run .</code></li>
-    <li><code>go run commands/seeders.go</code></li>
+    <li><a href="https://github.com/kiritoo9">kiritoo9</a></li>
 </ul>
 
-# Note
-<small>For my learning only</small>
+## Version
+1.0.1
