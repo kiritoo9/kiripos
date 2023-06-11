@@ -3,6 +3,7 @@ package masters
 import (
 	"kiripos/src/configs"
 	"kiripos/src/models"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -34,7 +35,7 @@ func RoleList(c *gin.Context) {
 
 	/**
 	QUERY USING GORM
-	@var err *gorm
+	@var err *gorm.Error
 	*/
 
 	var roles []models.Roles
@@ -51,7 +52,18 @@ func RoleList(c *gin.Context) {
 		return
 	}
 
-	var totalPage = 0
+	var count int64
+	var totalPage float64
+	configs.DB.Model(&models.Roles{}).Distinct("id").
+		Where("deleted = ?", false).
+		Where("LOWER(name) LIKE ?", "%"+keywords+"%").
+		Count(&count)
+
+	if count > 0 && limit > 0 {
+		var x float64 = float64(count)
+		var y float64 = float64(limit)
+		totalPage = math.Ceil(x / y)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Request Success",
