@@ -66,7 +66,7 @@ func Login(c *gin.Context) {
 
 	claims := jwt.MapClaims{}
 	claims["id"] = users.Id.String()
-	claims["name"] = users.Name
+	claims["fullname"] = users.Fullname
 	sign := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	token, errjwt := sign.SignedString([]byte(os.Getenv("APP_KEY")))
 	if errjwt != nil {
