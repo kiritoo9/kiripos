@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"kiritech/src/configs"
-	"kiritech/src/models"
+	"kiripos/src/configs"
+	"kiripos/src/models"
 
 	"github.com/alexsasharegan/dotenv"
 	"github.com/dgrijalva/jwt-go/v4"

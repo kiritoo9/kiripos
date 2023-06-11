@@ -1,6 +1,5 @@
-## About
-<p>Point of Sales</p>
-<small>Free small app to help your business</small>
+## Mini Point Of Sales
+<small>Small app to help your business</small>
 
 ## Developer
 <ul>

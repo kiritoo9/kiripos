@@ -1,10 +1,10 @@
 package routes
 
 import (
-	welcome "kiritech/src/controllers"
-	"kiritech/src/controllers/auth"
-	"kiritech/src/controllers/masters"
-	"kiritech/src/middlewares"
+	welcome "kiripos/src/controllers"
+	"kiripos/src/controllers/auth"
+	"kiripos/src/controllers/masters"
+	_ "kiripos/src/middlewares"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,8 +20,18 @@ func Init(router *gin.Engine) {
 
 	// V1
 	authorized := router.Group("/v1")
-	authorized.Use(middlewares.Authroized())
+	authorized.Use()
 	{
-		authorized.GET("/users", masters.UserList)
+		// MASTERS
+		_roles := authorized.Group(("/roles"))
+		{
+			_roles.GET("/", masters.RoleList)
+		}
+
+		_users := authorized.Group(("/users"))
+		{
+			_users.GET("/", masters.UserList)
+			_users.POST("/", masters.UserInsert)
+		}
 	}
 }

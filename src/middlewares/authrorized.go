@@ -2,8 +2,8 @@ package middlewares
 
 import (
 	"fmt"
-	"kiritech/src/configs"
-	"kiritech/src/models"
+	"kiripos/src/configs"
+	"kiripos/src/models"
 	"net/http"
 	"os"
 	"strings"

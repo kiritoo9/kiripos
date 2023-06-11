@@ -1,13 +1,15 @@
 package main
 
 import (
-	"os"
 	"log"
+	"os"
+
 	"github.com/alexsasharegan/dotenv"
-	
+
+	"kiripos/src/configs"
+	"kiripos/src/routes"
+
 	"github.com/gin-gonic/gin"
-	"kiritech/src/configs"
-	"kiritech/src/routes"
 )
 
 func main() {
@@ -21,5 +23,5 @@ func main() {
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
-	router.Run(":"+os.Getenv("APP_PORT"))
+	router.Run(":" + os.Getenv("APP_PORT"))
 }

@@ -7,8 +7,6 @@ import (
 	"github.com/alexsasharegan/dotenv"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-
-	"kiritech/src/models"
 )
 
 var DB *gorm.DB
@@ -31,7 +29,5 @@ func Connect() {
 	if err != nil {
 		log.Fatalf("Error database connection: %v", err)
 	}
-
-	db.AutoMigrate(&models.Users{})
 	DB = db
 }
