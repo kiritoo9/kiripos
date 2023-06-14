@@ -18,7 +18,6 @@ func UserList(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.Query("page"), 0, 0)
 	limit, _ := strconv.ParseInt(c.Query("limit"), 0, 0)
 	keywords := strings.ToLower(c.Query("keywords"))
-
 	if page == 0 {
 		page = 1
 	}
@@ -56,7 +55,7 @@ func UserList(c *gin.Context) {
 	}
 
 	var count int64
-	var totalPage float64
+	var totalPage float64 = 1
 	configs.DB.Model(&models.Users{}).Distinct("id").
 		Where("deleted = ?", false).
 		Where("LOWER(fullname) LIKE ?", "%"+keywords+"%").

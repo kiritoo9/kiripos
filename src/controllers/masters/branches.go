@@ -11,16 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func RoleList(c *gin.Context) {
-
-	/**
-	DECLARE QUERY PARAMS
-	@var page int
-	@var limit int
-	@var offset int
-	@var keywords string
-	*/
-
+func BranchList(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.Query("page"), 0, 0)
 	limit, _ := strconv.ParseInt(c.Query("limit"), 0, 0)
 	keywords := strings.ToLower(c.Query("keywords"))
@@ -32,30 +23,30 @@ func RoleList(c *gin.Context) {
 	}
 	var offset = (limit * page) - limit
 
-	/**
-	QUERY USING GORM
-	@var err *gorm.Error
-	*/
-
-	var roles []models.Roles
+	var data []models.Branches
 	err := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("LOWER(name) LIKE ?", "%"+keywords+"%").
+		Or("deleted = ?", false).
+		Where("LOWER(location) LIKE ?", "%"+keywords+"%").
+		Order("name ASC").
 		Limit(int(limit)).
 		Offset(int(offset)).
-		Order("name asc").
-		Where("LOWER(name) LIKE ?", "%"+keywords+"%").
-		Find(&roles, "deleted = ?", false).Error
+		Find(&data).Error
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"err": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 
 	var count int64
 	var totalPage float64 = 1
-	configs.DB.Model(&models.Roles{}).Distinct("id").
+	configs.DB.Model(&models.Branches{}).Distinct("id").
 		Where("deleted = ?", false).
 		Where("LOWER(name) LIKE ?", "%"+keywords+"%").
+		Or("deleted = ?", false).
+		Where("LOWER(location) LIKE ?", "%"+keywords+"%").
 		Count(&count)
 
 	if count > 0 && limit > 0 {
@@ -66,8 +57,24 @@ func RoleList(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Request Success",
-		"data":       roles,
+		"data":       data,
 		"pageActive": page,
 		"totalPage":  totalPage,
 	})
+}
+
+func BranchDetail(c *gin.Context) {
+
+}
+
+func BranchInsert(c *gin.Context) {
+
+}
+
+func BranchUpdate(c *gin.Context) {
+
+}
+
+func BranchDelete(c *gin.Context) {
+
 }

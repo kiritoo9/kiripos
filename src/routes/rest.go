@@ -36,5 +36,14 @@ func Init(router *gin.Engine) {
 			_users.PUT("/", masters.UserUpdate)
 			_users.DELETE("/:id", masters.UserDelete)
 		}
+
+		_branches := authorized.Group(("/branches"))
+		{
+			_branches.GET("/", masters.BranchList)
+			_branches.GET("/:id", masters.BranchDetail)
+			_branches.POST("/", masters.BranchInsert)
+			_branches.PUT("/", masters.BranchUpdate)
+			_branches.DELETE("/:id", masters.BranchDelete)
+		}
 	}
 }
