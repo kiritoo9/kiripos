@@ -43,7 +43,7 @@ func Authroized() gin.HandlerFunc {
 					if ok && token.Valid {
 						var id = claims["id"]
 						var user *models.Users
-						data := configs.DB.Find(&user, "id = ? AND deleted_at IS NULL", id)
+						data := configs.DB.Find(&user, "id = ? AND deleted = ?", id, false)
 						if data.RowsAffected > 0 {
 							allowedToken = true
 						}

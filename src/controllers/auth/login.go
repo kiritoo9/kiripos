@@ -34,7 +34,7 @@ func Login(c *gin.Context) {
 	}
 
 	var users models.Users
-	result := configs.DB.Find(&users, "email = ? AND deleted_at IS NULL", lm.Email)
+	result := configs.DB.Find(&users, "email = ? AND deleted = ?", lm.Email, false)
 	if result.RowsAffected <= 0 {
 		c.JSON(http.StatusNotFound, gin.H{
 			"message": "Email is not found",
@@ -62,7 +62,19 @@ func Login(c *gin.Context) {
 	var response = new(Response)
 	response.ID = users.Id.String()
 	response.Email = users.Email
-	response.Role = "admin"
+
+	var role_name string
+	var user_role models.UserRoles
+	res_role := configs.DB.Unscoped().
+		Select("roles.name AS role_name").
+		Joins("LEFT JOIN roles ON roles.id = user_roles.role_id").
+		Where("user_roles.deleted = ?", false).
+		Where("user_roles.user_id = ?", users.Id).
+		First(&user_role)
+	if res_role.RowsAffected > 0 {
+		role_name = user_role.RoleName
+	}
+	response.Role = role_name
 
 	claims := jwt.MapClaims{}
 	claims["id"] = users.Id.String()

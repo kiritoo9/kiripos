@@ -79,7 +79,6 @@ func UserList(c *gin.Context) {
 }
 
 func UserDetail(c *gin.Context) {
-
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -90,6 +89,7 @@ func UserDetail(c *gin.Context) {
 
 	var data models.Users
 	res := configs.DB.Unscoped().
+		Select("id", "fullname", "email", "is_active", "created_date").
 		Where("deleted = ?", false).
 		Where("id = ?", id).
 		Find(&data)
@@ -101,9 +101,26 @@ func UserDetail(c *gin.Context) {
 		return
 	}
 
+	var role_name string
+	var user_role models.UserRoles
+	res_role := configs.DB.Unscoped().
+		Joins("LEFT JOIN roles ON roles.id = user_roles.role_id").
+		Select("roles.name AS role_name").
+		Where("user_roles.deleted = ?", false).
+		Where("user_roles.user_id = ?", data.Id).
+		First(&user_role)
+	if res_role.RowsAffected > 0 {
+		role_name = user_role.RoleName
+	}
+
+	output := map[string]interface{}{
+		"user":      data,
+		"role_name": role_name,
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Request success",
-		"data":    data,
+		"data":    output,
 	})
 }
 
@@ -112,16 +129,19 @@ func UserInsert(c *gin.Context) {
 
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
+			"error": err.Error(),
 		})
 		return
 	}
 
 	// VALIDATE DATA
-	res := configs.DB.Unscoped().Where("email = ?", body.Email).First(&models.Users{})
+	res := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("email = ?", body.Email).
+		First(&models.Users{})
 	if res.RowsAffected > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Email is exists!",
+			"message": "Email is already registered!",
 		})
 		return
 	}
@@ -155,5 +175,101 @@ func UserInsert(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "Data inserted",
 		"data":    user,
+	})
+}
+
+func UserUpdate(c *gin.Context) {
+	var body models.Users_Form
+
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	res_user := configs.DB.Unscoped().
+		Where("id = ?", body.Id).
+		Where("LOWER(email) = ?", strings.ToLower(body.Email)).
+		Where("deleted = ?", false).
+		First(&models.Users{})
+	if res_user.RowsAffected <= 0 {
+		res_user := configs.DB.Unscoped().
+			Where("LOWER(email) = ?", strings.ToLower(body.Email)).
+			Where("deleted = ?", false).
+			First(&models.Users{})
+		if res_user.RowsAffected > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"message": "Email is already registered",
+			})
+			return
+		}
+	}
+
+	data_update := map[string]interface{}{
+		"fullname":  body.Fullname,
+		"email":     body.Email,
+		"is_active": body.IsActive,
+	}
+
+	if body.Password != "" {
+		hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 14)
+		body.Password = string(hash)
+		data_update["password"] = body.Password
+	}
+
+	err := configs.DB.Model(&models.Users{}).Where("id = ?", body.Id).Updates(data_update).Error
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	err_role := configs.DB.Model(&models.UserRoles{}).Where("user_id = ?", body.Id).Update("role_id", body.RoleId).Error
+	if err_role != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_role.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":      "Data updated",
+		"data_updated": data_update,
+	})
+}
+
+func UserDelete(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	err_user := configs.DB.Model(&models.Users{}).
+		Where("id = ?", id).
+		Update("deleted", true).Error
+	if err_user != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_user.Error(),
+		})
+		return
+	}
+
+	err_user_role := configs.DB.Model(&models.UserRoles{}).
+		Where("user_id = ?", id).
+		Update("deleted", true).Error
+	if err_user_role != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_user_role.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Data deleted",
 	})
 }
