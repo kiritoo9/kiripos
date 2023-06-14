@@ -156,10 +156,10 @@ func UserInsert(c *gin.Context) {
 		IsActive:    body.IsActive,
 		CreatedDate: time.Now(),
 	}
-	result := configs.DB.Create(&user).Error
-	if result != nil {
+	err_user := configs.DB.Create(&user).Error
+	if err_user != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": result.Error(),
+			"error": err_user.Error(),
 		})
 		return
 	}
@@ -172,8 +172,8 @@ func UserInsert(c *gin.Context) {
 	configs.DB.Create(&urole)
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Data inserted",
-		"data":    user,
+		"message":       "Data inserted",
+		"data_inserted": user,
 	})
 }
 

@@ -19,7 +19,7 @@ type Branches struct {
 }
 
 type Branches_Form struct {
-	Id       uuid.UUID `json:"id"`
+	Id       uuid.UUID `json:"id,omitempty"`
 	Code     string    `json:"code" binding:"required"`
 	Name     string    `json:"name" binding:"required"`
 	Location string    `json:"location"`
