@@ -25,7 +25,7 @@ func BranchList(c *gin.Context) {
 	}
 	var offset = (limit * page) - limit
 
-	var data []models.Branches
+	var datas []models.Branches
 	err := configs.DB.Unscoped().
 		Where("deleted = ?", false).
 		Where("LOWER(name) LIKE ?", "%"+keywords+"%").
@@ -34,7 +34,7 @@ func BranchList(c *gin.Context) {
 		Order("name ASC").
 		Limit(int(limit)).
 		Offset(int(offset)).
-		Find(&data).Error
+		Find(&datas).Error
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
@@ -59,7 +59,7 @@ func BranchList(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Request Success",
-		"data":       data,
+		"data":       datas,
 		"pageActive": page,
 		"totalPage":  totalPage,
 	})
@@ -75,13 +75,13 @@ func BranchDetail(c *gin.Context) {
 	}
 
 	var data *models.Branches
-	err_branch := configs.DB.Unscoped().
+	res_branch := configs.DB.Unscoped().
 		Where("deleted = ?", false).
 		Where("id = ?", id).
-		First(&data).Error
-	if err_branch != nil {
+		First(&data)
+	if res_branch.RowsAffected <= 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err_branch.Error(),
+			"error": "Data is not found",
 		})
 		return
 	}

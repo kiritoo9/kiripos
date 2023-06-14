@@ -51,7 +51,6 @@ func Init(router *gin.Engine) {
 			_branche_users.GET("/:branch_id", masters.BranchUserList)
 			_branche_users.GET("/:branch_id/:id", masters.BranchUserDetail)
 			_branche_users.POST("/:branch_id", masters.BranchUserInsert)
-			_branche_users.PUT("/:branch_id", masters.BranchUserUpdate)
 			_branche_users.DELETE("/:branch_id/:id", masters.BranchUserDelete)
 		}
 	}

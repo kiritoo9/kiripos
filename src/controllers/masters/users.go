@@ -95,7 +95,7 @@ func UserDetail(c *gin.Context) {
 
 	if res.RowsAffected <= 0 {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": res.Error.Error(),
+			"error": "Data is not found",
 		})
 		return
 	}
