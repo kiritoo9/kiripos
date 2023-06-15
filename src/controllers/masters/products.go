@@ -2,7 +2,6 @@ package masters
 
 import (
 	"encoding/json"
-	"fmt"
 	"kiripos/src/configs"
 	"kiripos/src/helpers"
 	"kiripos/src/models"
@@ -45,14 +44,24 @@ func ProductList(c *gin.Context) {
 		return
 	}
 
+	var output []map[string]interface{}
+
 	for i := 0; i < len(datas); i++ {
 		var imgs []string
-		err_json := json.Unmarshal([]byte(datas[i].Images), &imgs)
-		if err_json == nil {
-			fmt.Println(imgs)
+		json.Unmarshal([]byte(datas[i].Images), &imgs)
+		for j := 0; j < len(imgs); j++ {
+			imgs[j] = helpers.GettRealPath(c, "products/"+imgs[j])
 		}
 
-		// datas[i].Images = imgs
+		output = append(output, map[string]interface{}{
+			"id":           datas[i].Id,
+			"code":         datas[i].Code,
+			"name":         datas[i].Name,
+			"description":  datas[i].Description,
+			"is_active":    datas[i].IsActive,
+			"images":       imgs,
+			"created_date": datas[i].CreatedDate,
+		})
 	}
 
 	var count int64
@@ -72,14 +81,37 @@ func ProductList(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Request Success",
-		"data":       datas,
+		"data":       output,
 		"pageActive": page,
 		"totalPage":  totalPage,
 	})
 }
 
 func ProductDetail(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	var data *models.Products
+	err_data := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("id = ?", id).
+		First(&data).Error
+	if err_data != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_data.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Request Success",
+		"data":    data,
+	})
 }
 
 func ProductInsert(c *gin.Context) {

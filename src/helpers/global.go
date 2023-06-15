@@ -4,6 +4,8 @@ import (
 	"encoding/base64"
 	"os"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 func GenerateImage(dir string, base64Image string, unique string) string {
@@ -45,4 +47,12 @@ func GenerateImage(dir string, base64Image string, unique string) string {
 		}
 	}
 	return filename
+}
+
+func GettRealPath(c *gin.Context, path string) string {
+	var protocol string = "http"
+	if c.Request.TLS != nil {
+		protocol = "https"
+	}
+	return protocol + "://" + c.Request.Host + "/cdn/" + path
 }

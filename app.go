@@ -15,6 +15,7 @@ import (
 func main() {
 	router := gin.New()
 	router.Use(gin.Recovery(), gin.Logger())
+	router.Static("/cdn", "./cdn")
 	routes.Init(router)
 	configs.Connect()
 
