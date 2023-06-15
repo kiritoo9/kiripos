@@ -53,5 +53,14 @@ func Init(router *gin.Engine) {
 			_branche_users.POST("/:branch_id", masters.BranchUserInsert)
 			_branche_users.DELETE("/:branch_id/:id", masters.BranchUserDelete)
 		}
+
+		_products := authorized.Group(("/products"))
+		{
+			_products.GET("/", masters.ProductList)
+			_products.GET("/:id", masters.ProductDetail)
+			_products.POST("/", masters.ProductInsert)
+			_products.PUT("/", masters.ProductUpdate)
+			_products.DELETE("/:id", masters.ProductDelete)
+		}
 	}
 }
