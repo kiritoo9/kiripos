@@ -56,3 +56,7 @@ func GettRealPath(c *gin.Context, path string) string {
 	}
 	return protocol + "://" + c.Request.Host + "/cdn/" + path
 }
+
+func RemoveFile(path string) {
+	os.Remove("./cdn/" + path)
+}

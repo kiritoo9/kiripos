@@ -43,7 +43,7 @@ func UserList(c *gin.Context) {
 		return
 	}
 
-	var output []models.Users_Output
+	output := make([]models.Users_Output, len(datas))
 	for i := 0; i < len(datas); i++ {
 		output = append(output, models.Users_Output{
 			Id:          datas[i].Id,

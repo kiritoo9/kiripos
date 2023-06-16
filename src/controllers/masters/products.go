@@ -44,7 +44,7 @@ func ProductList(c *gin.Context) {
 		return
 	}
 
-	var output []map[string]interface{}
+	output := make([]map[string]interface{}, len(datas))
 
 	for i := 0; i < len(datas); i++ {
 		var imgs []string
@@ -108,9 +108,25 @@ func ProductDetail(c *gin.Context) {
 		return
 	}
 
+	var imgs []string
+	json.Unmarshal([]byte(data.Images), &imgs)
+	for i := 0; i < len(imgs); i++ {
+		imgs[i] = helpers.GettRealPath(c, "products/"+imgs[i])
+	}
+
+	output := map[string]interface{}{
+		"id":           data.Id,
+		"code":         data.Code,
+		"name":         data.Name,
+		"description":  data.Description,
+		"is_active":    data.IsActive,
+		"images":       imgs,
+		"created_date": data.CreatedDate,
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Request Success",
-		"data":    data,
+		"data":    output,
 	})
 }
 
@@ -168,9 +184,86 @@ func ProductInsert(c *gin.Context) {
 }
 
 func ProductUpdate(c *gin.Context) {
+	var body *models.Products_Form
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	res := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("id = ?", body.Id).
+		Where("LOWER(code) = ?", strings.ToLower(body.Code)).
+		First(&models.Products{})
+	if res.RowsAffected <= 0 {
+		res := configs.DB.Unscoped().
+			Where("deleted = ?", false).
+			Where("LOWER(code) = ?", strings.ToLower(body.Code)).
+			First(&models.Products{})
+		if res.RowsAffected > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Product code is already exists",
+			})
+			return
+		}
+	}
+
+	data_update := map[string]interface{}{
+		"code":        body.Code,
+		"name":        body.Name,
+		"description": body.Description,
+		"is_active":   body.IsActive,
+	}
+
+	if body.Images != "" {
+		var filename string = body.Id.String() + "-0"
+		helpers.RemoveFile("products/" + body.Id.String() + "-0.png")
+		body.Images = helpers.GenerateImage("products", body.Images, filename)
+
+		var arr_imgs []string
+		arr_imgs = append(arr_imgs, body.Images)
+		images, _ := json.Marshal(arr_imgs)
+		data_update["images"] = string(images)
+	}
+
+	err_update := configs.DB.Model(&models.Products{}).
+		Where("id = ?", body.Id).
+		Updates(data_update).Error
+	if err_update != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_update.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":      "Data updated",
+		"data_updated": data_update,
+	})
 }
 
 func ProductDelete(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	err_delete := configs.DB.Model(&models.Products{}).
+		Where("id = ?", id).
+		Update("deleted", true).Error
+	if err_delete != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Data deleted",
+	})
 }
