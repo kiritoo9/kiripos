@@ -19,6 +19,8 @@ func ProductList(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.Query("page"), 0, 0)
 	limit, _ := strconv.ParseInt(c.Query("limit"), 0, 0)
 	keywords := strings.ToLower(c.Query("keywords"))
+	category_id, empty_category := uuid.Parse(c.Query("category_id"))
+
 	if page <= 0 {
 		page = 1
 	}
@@ -28,14 +30,24 @@ func ProductList(c *gin.Context) {
 	var offset = (page * limit) - limit
 
 	var datas []models.Products
+
+	conditions := map[string]interface{}{
+		"products.deleted": false,
+	}
+	if empty_category == nil {
+		conditions["products.category_id"] = category_id
+	}
+
 	err := configs.DB.Unscoped().
+		Select("products.*", "categories.name AS category_name").
+		Joins("LEFT JOIN categories ON categories.id = products.category_id").
 		Limit(int(limit)).
 		Offset(int(offset)).
-		Order("name ASC").
-		Where("deleted = ?", false).
-		Where("LOWER(name) LIKE ?", "%"+keywords+"%").
-		Or("deleted = ?", false).
-		Where("LOWER(code) LIKE ?", "%"+keywords+"%").
+		Order("products.name ASC").
+		Where(conditions).
+		Where("LOWER(products.name) LIKE ?", "%"+keywords+"%").
+		Or(conditions).
+		Where("LOWER(products.code) LIKE ?", "%"+keywords+"%").
 		Find(&datas).Error
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -54,23 +66,27 @@ func ProductList(c *gin.Context) {
 		}
 
 		output = append(output, map[string]interface{}{
-			"id":           datas[i].Id,
-			"code":         datas[i].Code,
-			"name":         datas[i].Name,
-			"description":  datas[i].Description,
-			"is_active":    datas[i].IsActive,
-			"images":       imgs,
-			"created_date": datas[i].CreatedDate,
+			"id":            datas[i].Id,
+			"category_id":   datas[i].CategoryId,
+			"code":          datas[i].Code,
+			"name":          datas[i].Name,
+			"description":   datas[i].Description,
+			"category_name": datas[i].CategoryName,
+			"is_active":     datas[i].IsActive,
+			"images":        imgs,
+			"created_date":  datas[i].CreatedDate,
 		})
 	}
 
 	var count int64
 	var totalPage float64 = 1
-	configs.DB.Model(&models.Products{}).Distinct("id").
-		Where("deleted = ?", false).
-		Where("LOWER(name) = ?", "%"+keywords+"%").
-		Where("deleted = ?", false).
-		Where("LOWER(code) = ?", "%"+keywords+"%").
+	configs.DB.Model(&models.Products{}).
+		Joins("LEFT JOIN categories ON categories.id = products.category_id").
+		Distinct("products.id").
+		Where(conditions).
+		Where("LOWER(products.name) = ?", "%"+keywords+"%").
+		Where(conditions).
+		Where("LOWER(products.code) = ?", "%"+keywords+"%").
 		Count(&count)
 
 	if count > 0 && limit > 0 {
@@ -98,11 +114,13 @@ func ProductDetail(c *gin.Context) {
 
 	var data *models.Products
 	err_data := configs.DB.Unscoped().
-		Where("deleted = ?", false).
-		Where("id = ?", id).
+		Select("products.*", "categories.name AS category_name").
+		Joins("LEFT JOIN categories ON categories.id = products.category_id").
+		Where("products.deleted = ?", false).
+		Where("products.id = ?", id).
 		First(&data).Error
 	if err_data != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusNotFound, gin.H{
 			"error": err_data.Error(),
 		})
 		return
@@ -115,13 +133,15 @@ func ProductDetail(c *gin.Context) {
 	}
 
 	output := map[string]interface{}{
-		"id":           data.Id,
-		"code":         data.Code,
-		"name":         data.Name,
-		"description":  data.Description,
-		"is_active":    data.IsActive,
-		"images":       imgs,
-		"created_date": data.CreatedDate,
+		"id":            data.Id,
+		"category_id":   data.CategoryId,
+		"code":          data.Code,
+		"name":          data.Name,
+		"description":   data.Description,
+		"category_name": data.CategoryName,
+		"is_active":     data.IsActive,
+		"images":        imgs,
+		"created_date":  data.CreatedDate,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -150,6 +170,17 @@ func ProductInsert(c *gin.Context) {
 		return
 	}
 
+	res_category := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("id = ?", body.CategoryId).
+		First(&models.Categories{})
+	if res_category.RowsAffected <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Category is not found",
+		})
+		return
+	}
+
 	body.Id = uuid.New()
 	if body.Images != "" {
 		body.Images = helpers.GenerateImage("products", body.Images, body.Id.String()+"-0")
@@ -161,6 +192,7 @@ func ProductInsert(c *gin.Context) {
 	images, _ := json.Marshal(arr_imgs)
 	product := models.Products{
 		Id:          body.Id,
+		CategoryId:  body.CategoryId,
 		Code:        strings.ToUpper(body.Code),
 		Name:        body.Name,
 		Description: body.Description,
@@ -192,6 +224,17 @@ func ProductUpdate(c *gin.Context) {
 		return
 	}
 
+	res_category := configs.DB.Unscoped().
+		Where("deleted = ?", false).
+		Where("id = ?", body.CategoryId).
+		First(&models.Categories{})
+	if res_category.RowsAffected <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Category is not found",
+		})
+		return
+	}
+
 	res := configs.DB.Unscoped().
 		Where("deleted = ?", false).
 		Where("id = ?", body.Id).
@@ -211,6 +254,7 @@ func ProductUpdate(c *gin.Context) {
 	}
 
 	data_update := map[string]interface{}{
+		"category_id": body.CategoryId,
 		"code":        body.Code,
 		"name":        body.Name,
 		"description": body.Description,

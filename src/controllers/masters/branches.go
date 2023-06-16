@@ -80,7 +80,7 @@ func BranchDetail(c *gin.Context) {
 		Where("id = ?", id).
 		First(&data)
 	if res_branch.RowsAffected <= 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
+		c.JSON(http.StatusNotFound, gin.H{
 			"error": "Data is not found",
 		})
 		return
