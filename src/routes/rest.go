@@ -71,5 +71,14 @@ func Init(router *gin.Engine) {
 			_products.PUT("/", masters.ProductUpdate)
 			_products.DELETE("/:id", masters.ProductDelete)
 		}
+
+		_customers := authorized.Group(("/customers"))
+		{
+			_customers.GET("/", masters.CustomerList)
+			_customers.GET("/:id", masters.CustomerDetail)
+			_customers.POST("/", masters.CustomerInsert)
+			_customers.PUT("/", masters.CustomerUpdate)
+			_customers.DELETE("/:id", masters.CustomerDelete)
+		}
 	}
 }
