@@ -4,6 +4,7 @@ import (
 	welcome "kiripos/src/controllers"
 	"kiripos/src/controllers/auth"
 	"kiripos/src/controllers/masters"
+	"kiripos/src/controllers/orders"
 	"kiripos/src/middlewares"
 
 	"github.com/gin-gonic/gin"
@@ -20,7 +21,7 @@ func Init(router *gin.Engine) {
 
 	// V1
 	authorized := router.Group("/v1")
-	authorized.Use(middlewares.Authroized())
+	authorized.Use(middlewares.Authorization())
 	{
 		// MASTERS
 		_roles := authorized.Group(("/roles"))
@@ -79,6 +80,12 @@ func Init(router *gin.Engine) {
 			_customers.POST("/", masters.CustomerInsert)
 			_customers.PUT("/", masters.CustomerUpdate)
 			_customers.DELETE("/:id", masters.CustomerDelete)
+		}
+
+		// TRANSACTIONS
+		_trx := authorized.Group(("/orders"))
+		{
+			_trx.GET("/", orders.List)
 		}
 	}
 }

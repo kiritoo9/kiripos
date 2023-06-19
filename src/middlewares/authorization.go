@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Authroized() gin.HandlerFunc {
+func Authorization() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		errenv := dotenv.Load()
 		if errenv != nil {
@@ -25,7 +25,7 @@ func Authroized() gin.HandlerFunc {
 		}
 
 		contentType := c.Request.Header.Get("Content-Type")
-		bearerToken := c.Request.Header.Get("Authroization")
+		bearerToken := c.Request.Header.Get("Authorization")
 		if len(contentType) > 0 {
 			var allowedToken = false
 			if len(strings.Split(bearerToken, "")) >= 2 {
