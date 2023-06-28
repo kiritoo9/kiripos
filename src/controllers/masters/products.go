@@ -25,7 +25,7 @@ func ProductList(c *gin.Context) {
 		page = 1
 	}
 	if limit <= 0 {
-		page = 1
+		limit = 10
 	}
 	var offset = (page * limit) - limit
 
@@ -71,9 +71,11 @@ func ProductList(c *gin.Context) {
 			"code":          datas[i].Code,
 			"name":          datas[i].Name,
 			"price":         datas[i].Price,
+			"stock":         datas[i].Stock,
 			"description":   datas[i].Description,
 			"category_name": datas[i].CategoryName,
 			"is_active":     datas[i].IsActive,
+			"with_stock":    datas[i].WithStock,
 			"images":        imgs,
 			"created_date":  datas[i].CreatedDate,
 		})
@@ -139,9 +141,11 @@ func ProductDetail(c *gin.Context) {
 		"code":          data.Code,
 		"name":          data.Name,
 		"price":         data.Price,
+		"stock":         data.Stock,
 		"description":   data.Description,
 		"category_name": data.CategoryName,
 		"is_active":     data.IsActive,
+		"with_stock":    data.WithStock,
 		"images":        imgs,
 		"created_date":  data.CreatedDate,
 	}
@@ -200,6 +204,7 @@ func ProductInsert(c *gin.Context) {
 		Price:       body.Price,
 		Description: body.Description,
 		IsActive:    body.IsActive,
+		WithStock:   body.WithStock,
 		Images:      string(images),
 		CreatedDate: time.Now(),
 	}
@@ -263,6 +268,7 @@ func ProductUpdate(c *gin.Context) {
 		"price":       body.Price,
 		"description": body.Description,
 		"is_active":   body.IsActive,
+		"with_stock":  body.WithStock,
 	}
 
 	if body.Images != "" {

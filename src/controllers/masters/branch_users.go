@@ -42,7 +42,7 @@ func BranchUserList(c *gin.Context) {
 		page = 1
 	}
 	if limit <= 0 {
-		limit = 1
+		limit = 10
 	}
 	var offset = (page * limit) - limit
 

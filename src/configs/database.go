@@ -24,7 +24,9 @@ func Connect() {
 	DB_PORT := os.Getenv("DB_PORT")
 
 	dsn := "host=" + DB_HOST + " user=" + DB_USER + " password=" + DB_PASS + " dbname=" + DB_NAME + " port=" + DB_PORT + " sslmode=disable TimeZone=Asia/Jakarta"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		SkipDefaultTransaction: true,
+	})
 
 	if err != nil {
 		log.Fatalf("Error database connection: %v", err)

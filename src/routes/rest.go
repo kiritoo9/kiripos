@@ -85,7 +85,8 @@ func Init(router *gin.Engine) {
 		// TRANSACTIONS
 		_trx := authorized.Group(("/orders"))
 		{
-			_trx.GET("/", orders.List)
+			_trx.GET("/", orders.OrderList)
+			_trx.POST("/", orders.OrderCreate)
 		}
 	}
 }
