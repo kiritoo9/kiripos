@@ -56,7 +56,7 @@ func ProductList(c *gin.Context) {
 		return
 	}
 
-	output := make([]map[string]interface{}, len(datas))
+	output := make([]map[string]interface{}, 0)
 
 	for i := 0; i < len(datas); i++ {
 		var imgs []string
@@ -165,15 +165,23 @@ func ProductInsert(c *gin.Context) {
 		return
 	}
 
-	res := configs.DB.Unscoped().
+	var productCode string = "PR001"
+	var totalCount int64 = 0
+
+	configs.DB.Unscoped().
+		Model(&models.Products{}).
+		Distinct("id").
 		Where("deleted = ?", false).
-		Where("LOWER(code) = ?", strings.ToLower(body.Code)).
-		First(&models.Products{})
-	if res.RowsAffected > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Product code is already exists",
-		})
-		return
+		Count(&totalCount)
+	if totalCount > 0 {
+		var pcode string = strconv.Itoa(int(totalCount) + 1)
+		if len(pcode) == 1 {
+			productCode = "PR00" + pcode
+		} else if len(pcode) == 2 {
+			productCode = "PR0" + pcode
+		} else {
+			productCode = "PR" + pcode
+		}
 	}
 
 	res_category := configs.DB.Unscoped().
@@ -196,17 +204,17 @@ func ProductInsert(c *gin.Context) {
 	arr_imgs = append(arr_imgs, body.Images)
 
 	images, _ := json.Marshal(arr_imgs)
-	product := models.Products{
-		Id:          body.Id,
-		CategoryId:  body.CategoryId,
-		Code:        strings.ToUpper(body.Code),
-		Name:        body.Name,
-		Price:       body.Price,
-		Description: body.Description,
-		IsActive:    body.IsActive,
-		WithStock:   body.WithStock,
-		Images:      string(images),
-		CreatedDate: time.Now(),
+	product := map[string]interface{}{
+		"id":           body.Id,
+		"category_id":  body.CategoryId,
+		"code":         productCode,
+		"name":         body.Name,
+		"price":        body.Price,
+		"description":  body.Description,
+		"is_active":    body.IsActive,
+		"with_stock":   body.WithStock,
+		"images":       string(images),
+		"created_date": time.Now(),
 	}
 
 	err := configs.DB.Model(&models.Products{}).Create(&product).Error
@@ -243,27 +251,8 @@ func ProductUpdate(c *gin.Context) {
 		return
 	}
 
-	res := configs.DB.Unscoped().
-		Where("deleted = ?", false).
-		Where("id = ?", body.Id).
-		Where("LOWER(code) = ?", strings.ToLower(body.Code)).
-		First(&models.Products{})
-	if res.RowsAffected <= 0 {
-		res := configs.DB.Unscoped().
-			Where("deleted = ?", false).
-			Where("LOWER(code) = ?", strings.ToLower(body.Code)).
-			First(&models.Products{})
-		if res.RowsAffected > 0 {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": "Product code is already exists",
-			})
-			return
-		}
-	}
-
 	data_update := map[string]interface{}{
 		"category_id": body.CategoryId,
-		"code":        body.Code,
 		"name":        body.Name,
 		"price":       body.Price,
 		"description": body.Description,

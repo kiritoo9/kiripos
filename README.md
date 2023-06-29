@@ -3,9 +3,9 @@
 
 ## Run
 ```bash
-    go mod init kiripos
-    go mod tidy
-    go run .
+go mod init kiripos
+go mod tidy
+go run .
 ```
 
 ## Developer

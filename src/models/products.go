@@ -24,7 +24,6 @@ type Products struct {
 type Products_Form struct {
 	Id          uuid.UUID `json:"id,omitempty"`
 	CategoryId  uuid.UUID `json:"category_id" binding:"required"`
-	Code        string    `json:"code" binding:"required"`
 	Name        string    `json:"name" binding:"required"`
 	Price       float64   `json:"price" binding:"required"`
 	Description string    `json:"description"`

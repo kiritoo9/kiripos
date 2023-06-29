@@ -2,9 +2,14 @@ package helpers
 
 import (
 	"encoding/base64"
+	"fmt"
+	"kiripos/src/configs"
+	"kiripos/src/models"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/dgrijalva/jwt-go/v4"
 	"github.com/gin-gonic/gin"
 )
 
@@ -59,4 +64,51 @@ func GettRealPath(c *gin.Context, path string) string {
 
 func RemoveFile(path string) {
 	os.Remove("./cdn/" + path)
+}
+
+func GetToken(c *gin.Context) map[string]interface{} {
+	bearerToken := c.Request.Header.Get("Authorization")
+	if len(strings.Split(bearerToken, "")) >= 2 {
+		cleanToken := strings.Split(bearerToken, " ")[1]
+
+		token, err := jwt.Parse(cleanToken, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method")
+			}
+			return []byte(os.Getenv("APP_KEY")), nil
+		})
+
+		if err == nil {
+			claims, ok := token.Claims.(jwt.MapClaims)
+			if ok && token.Valid {
+				return map[string]interface{}{
+					"id":        claims["id"],
+					"fullname":  claims["fullname"],
+					"branch_id": claims["branch_id"],
+				}
+			}
+		}
+
+	}
+	return nil
+}
+
+func GenerateCustomerCode() (code string) {
+	var lastData int64
+	code = "CS001"
+	configs.DB.Model(&models.Customers{}).
+		Where("deleted = ?", false).
+		Count(&lastData)
+
+	if lastData > 0 {
+		count := strconv.FormatInt(lastData+1, 10)
+		if len(count) == 1 {
+			code = "CS00" + count
+		} else if len(count) == 2 {
+			code = "CS0" + count
+		} else {
+			code = "CS" + count
+		}
+	}
+	return
 }

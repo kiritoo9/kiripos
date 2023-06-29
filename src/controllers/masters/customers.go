@@ -2,6 +2,7 @@ package masters
 
 import (
 	"kiripos/src/configs"
+	"kiripos/src/helpers"
 	"kiripos/src/models"
 	"math"
 	"net/http"
@@ -102,23 +103,7 @@ func CustomerInsert(c *gin.Context) {
 		return
 	}
 
-	var lastData int64
-	var code string = "CS001"
-	configs.DB.Model(&models.Customers{}).
-		Where("deleted = ?", false).
-		Count(&lastData)
-
-	if lastData > 0 {
-		count := strconv.FormatInt(lastData+1, 10)
-		if len(count) == 1 {
-			code = "CS00" + count
-		} else if len(count) == 2 {
-			code = "CS0" + count
-		} else {
-			code = "CS" + count
-		}
-	}
-
+	var code string = helpers.GenerateCustomerCode()
 	var data_inserted = map[string]interface{}{
 		"id":           uuid.New(),
 		"code":         code,

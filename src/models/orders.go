@@ -16,6 +16,7 @@ type Trx struct {
 	TotalPrice   int       `json:"total_price"`
 	Discount     int       `json:"discount"`
 	DiscountDesc string    `json:"discount_desc"`
+	GrandTotal   int       `json:"grand_total"`
 	Status       string    `json:"status"`
 	Note         string    `json:"note"`
 	CreatedDate  time.Time `json:"created_date"`
@@ -27,9 +28,10 @@ type TrxForm struct {
 	Id           uuid.UUID        `json:"id,omitempty"`
 	Discount     int              `json:"discount"`
 	DiscountDesc string           `json:"discount_desc"`
-	Status       string           `json:"status"`
+	Status       string           `json:"status" binding:"required"`
 	Note         string           `json:"note"`
-	Items        []TrxDetailsForm `json:"items"`
+	Items        []TrxDetailsForm `json:"items" binding:"required"`
+	CustomerName string           `json:"customer_name" binding:"required"`
 }
 
 type TrxDetailsForm struct {

@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS trx (
 	total_price numeric default 0,
 	discount numeric default 0,
 	discount_desc text,
+	grand_total numeric default 0,
 	status char(2) default 'S1',
 	note text,
 	deleted boolean default false,

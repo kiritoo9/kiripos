@@ -1,12 +1,15 @@
 package orders
 
 import (
+	"fmt"
 	"kiripos/src/configs"
+	"kiripos/src/helpers"
 	"kiripos/src/models"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -98,9 +101,152 @@ func OrderCreate(c *gin.Context) {
 		return
 	}
 
+	var errProducts []string
+	var validProducts []map[string]interface{}
+	var totalQty int = 0
+	var totalPrice int = 0
+
+	for i := range body.Items {
+		var d models.Products
+		resprod := configs.DB.
+			Where("deleted = ?", false).
+			Where("id = ?", body.Items[i].ProductId).
+			First(&d)
+		if resprod.RowsAffected <= 0 {
+			errProducts = append(errProducts, "Product with id : "+body.Items[i].ProductId.String()+" is not exists")
+		} else {
+			var allowed bool = true
+			if d.WithStock {
+				if d.Stock <= 0 {
+					allowed = false
+					errProducts = append(errProducts, "Product with id : "+body.Items[i].ProductId.String()+" have no stock")
+				}
+			}
+
+			if allowed {
+				totalQty += body.Items[i].Qty
+				totalPrice += int(d.Price) * body.Items[i].Qty
+				validProducts = append(validProducts, map[string]interface{}{
+					"id":             uuid.New(),
+					"product_id":     d.Id,
+					"qty":            body.Items[i].Qty,
+					"price":          d.Price,
+					"with_stock":     d.WithStock,
+					"existing_stock": d.Stock,
+				})
+			}
+		}
+	}
+
+	if len(errProducts) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": errProducts,
+		})
+		return
+	}
+
+	today := time.Now()
+	tdate := today.Format("2006-01-02")
+	var countToday int64 = 0
+	configs.DB.Table("trx").
+		Where("deleted = ?", false).
+		Where("LEFT(created_date::TEXT, 10) = ?", tdate).
+		Count(&countToday)
+	countToday += 1
+
+	order := map[string]interface{}{
+		"id":            uuid.New(),
+		"user_id":       nil,
+		"customer_id":   nil,
+		"branch_id":     nil,
+		"code":          strconv.Itoa(int(countToday)),
+		"total_qty":     totalQty,
+		"total_price":   totalPrice,
+		"discount":      body.Discount,
+		"discount_desc": body.DiscountDesc,
+		"grand_total":   totalPrice - body.Discount,
+		"status":        body.Status,
+		"note":          body.Note,
+		"created_date":  today,
+	}
+
+	var customer models.Customers
+	rescust := configs.DB.Where("deleted = ?", false).
+		Where("LOWER(name) = ?", strings.ToLower(body.CustomerName)).
+		First(&customer)
+	if rescust.RowsAffected > 0 {
+		order["customer_id"] = customer.Id
+	} else {
+		new_cust := models.Customers{
+			Id:          uuid.New(),
+			Code:        helpers.GenerateCustomerCode(),
+			Name:        body.CustomerName,
+			CreatedDate: time.Now(),
+		}
+		if err := configs.DB.Create(&new_cust).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		} else {
+			order["customer_id"] = new_cust.Id
+		}
+	}
+
+	token := helpers.GetToken(c)
+	if token["branch_id"] == nil || token["branch_id"] == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "missing branch_id",
+		})
+		return
+	}
+	order["branch_id"] = token["branch_id"]
+	order["user_id"] = token["id"]
+
+	// INSERT TO DB
+	err_insert := configs.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table("trx").Create(&order).Error; err != nil {
+			return err
+		}
+
+		for i := range validProducts {
+			d := map[string]interface{}{
+				"id":         validProducts[i]["id"],
+				"trx_id":     order["id"],
+				"product_id": validProducts[i]["product_id"],
+				"qty":        validProducts[i]["qty"],
+				"price":      validProducts[i]["price"],
+			}
+			if err := tx.Table("trx_items").Create(&d).Error; err != nil {
+				return err
+			} else {
+				if strings.ToUpper(fmt.Sprint(order["status"])) == "S2" && validProducts[i]["with_stock"] == true {
+					existingStock, _ := strconv.ParseInt(fmt.Sprint(validProducts[i]["existing_stock"]), 0, 0)
+					qty, _ := strconv.ParseInt(fmt.Sprint(d["qty"]), 0, 0)
+					var updatedStock int64 = existingStock - qty
+					updated_data := map[string]interface{}{
+						"stock": updatedStock,
+					}
+					if err := tx.Table("products").Where("id = ?", d["product_id"]).Updates(&updated_data).Error; err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	})
+
+	if err_insert != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_insert.Error(),
+		})
+		return
+	}
+
+	order["items"] = validProducts
 	c.JSON(http.StatusCreated, gin.H{
 		"message":       "data_inserted",
-		"data_inserted": body,
+		"data_inserted": order,
 	})
 }
 

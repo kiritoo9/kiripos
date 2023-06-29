@@ -63,7 +63,7 @@ func Login(c *gin.Context) {
 	response.ID = users.Id.String()
 	response.Email = users.Email
 
-	var role_name string
+	var role_name string = ""
 	var user_role models.UserRoles
 	res_role := configs.DB.Unscoped().
 		Select("roles.name AS role_name").
@@ -76,14 +76,33 @@ func Login(c *gin.Context) {
 	}
 	response.Role = role_name
 
+	if role_name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "user have no role",
+		})
+		return
+	}
+
 	claims := jwt.MapClaims{}
 	claims["id"] = users.Id.String()
 	claims["fullname"] = users.Fullname
+
+	var user_branch models.BranchUsers
+	res_ubranch := configs.DB.Where("deleted = ?", false).Where("user_id = ?", users.Id).First(&user_branch)
+	if res_ubranch.RowsAffected > 0 {
+		claims["branch_id"] = user_branch.BranchId
+	} else {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "user have no branch",
+		})
+		return
+	}
+
 	sign := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	token, errjwt := sign.SignedString([]byte(os.Getenv("APP_KEY")))
 	if errjwt != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "error while generate your token",
+			"error": "error while generate your token",
 		})
 		return
 	}
