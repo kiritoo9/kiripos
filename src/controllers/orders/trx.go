@@ -16,7 +16,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func _handleSearch(tx *gorm.DB, keywords string, startDate string, endDate string, branchId uuid.UUID) *gorm.DB {
+func _handleSearch(tx *gorm.DB, keywords string, startDate string, endDate string, branchId string) *gorm.DB {
 	searchFields := [3]string{"trx.code", "customers.name", "users.fullname"}
 	for i := range searchFields {
 		if i == 0 {
@@ -24,9 +24,10 @@ func _handleSearch(tx *gorm.DB, keywords string, startDate string, endDate strin
 		} else {
 			tx.Or("trx.deleted = ?", false)
 		}
-		tx.Where("LOWER("+searchFields[i]+") = ?", "%"+keywords+"%")
+		tx.Where("LOWER("+searchFields[i]+") LIKE ?", "%"+keywords+"%")
 
-		if branchId.String() != "" {
+		branchId, errBranch := uuid.Parse(branchId)
+		if errBranch == nil {
 			tx.Where("trx.branch_id = ?", branchId)
 		}
 	}
@@ -39,7 +40,7 @@ func OrderList(c *gin.Context) {
 	keywords := strings.ToLower(c.Query("keywords"))
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
-	branchId, _ := uuid.Parse(c.Query("branch_id"))
+	branchId := c.Query("branch_id")
 	if page <= 0 {
 		page = 1
 	}
@@ -49,12 +50,12 @@ func OrderList(c *gin.Context) {
 
 	var offset int64 = (page * limit) - limit
 	var datas []models.Trx
-
 	tx := configs.DB.
 		Table("trx").
-		Select("trx.id", "trx.code", "trx.total_qty", "trx.total_price", "trx.discount", "trx.discount_desc", "trx.status", "trx.created_date", "users.fullname AS user_name", "customers.name AS customer_name").
+		Select("trx.id", "trx.user_id", "trx.customer_id", "trx.branch_id", "trx.code", "trx.total_qty", "trx.total_price", "trx.discount", "trx.discount_desc", "trx.status", "trx.created_date", "trx.note", "users.fullname AS user_name", "customers.name AS customer_name", "branches.name AS branch_name").
 		Joins("LEFT JOIN users ON users.id = trx.user_id").
 		Joins("LEFT JOIN customers ON customers.id = trx.customer_id").
+		Joins("LEFT JOIN branches ON branches.id = trx.branch_id").
 		Limit(int(limit)).
 		Offset(int(offset))
 	tx = _handleSearch(tx, keywords, startDate, endDate, branchId)
@@ -220,7 +221,7 @@ func OrderCreate(c *gin.Context) {
 			if err := tx.Table("trx_items").Create(&d).Error; err != nil {
 				return err
 			} else {
-				if strings.ToUpper(fmt.Sprint(order["status"])) == "S2" && validProducts[i]["with_stock"] == true {
+				if validProducts[i]["with_stock"] == true {
 					existingStock, _ := strconv.ParseInt(fmt.Sprint(validProducts[i]["existing_stock"]), 0, 0)
 					qty, _ := strconv.ParseInt(fmt.Sprint(d["qty"]), 0, 0)
 					var updatedStock int64 = existingStock - qty
@@ -255,5 +256,65 @@ func OrderUpdate(c *gin.Context) {
 }
 
 func OrderDelete(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	var order models.Trx
+	res_order := configs.DB.Table("trx").Where("deleted = ?", false).Where("id = ?", id).First(&order)
+	if res_order.RowsAffected <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Order is not found",
+		})
+		return
+	}
+
+	var orderDetail []models.TrxDetails
+	err_detail := configs.DB.Table("trx_items").
+		Select("trx_items.*", "products.name AS product_name").
+		Joins("LEFT JOIN products ON products.id = trx_items.product_id").
+		Where("trx_items.trx_id = ?", order.Id).Find(&orderDetail).Error
+	if err_detail != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_detail.Error(),
+		})
+		return
+	}
+
+	err_delete := configs.DB.Transaction(func(tx *gorm.DB) error {
+		if err := configs.DB.Table("trx").Where("id = ?", id).Update("deleted", true).Error; err != nil {
+			return err
+		}
+
+		if strings.ToUpper(order.Status) == "S1" {
+			for i := range orderDetail {
+				var product models.Products
+				if err_product := configs.DB.Select("with_stock", "stock").Where("id = ?", orderDetail[i].ProductId).First(&product).Error; err_product != nil {
+					return err_product
+				}
+				if product.WithStock {
+					var new_stock int = product.Stock + orderDetail[i].Qty
+					if err_update := configs.DB.Model(&models.Products{}).Where("id = ?", orderDetail[i].ProductId).Update("stock", new_stock).Error; err_update != nil {
+						return err_update
+					}
+				}
+			}
+		}
+
+		return nil
+	})
+	if err_delete != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_delete.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Data deleted",
+	})
 }

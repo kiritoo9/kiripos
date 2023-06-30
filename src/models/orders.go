@@ -22,6 +22,16 @@ type Trx struct {
 	CreatedDate  time.Time `json:"created_date"`
 	UserName     string    `json:"user_name,omitempty"`
 	CustomerName string    `json:"customer_name,omitempty"`
+	BranchName   string    `json:"branch_name,omitempty"`
+}
+
+type TrxDetails struct {
+	Id          uuid.UUID `json:"id"`
+	TrxId       uuid.UUID `json:"trx_id"`
+	ProductId   uuid.UUID `json:"product_id"`
+	Qty         int       `json:"qty"`
+	Price       int       `json:"price"`
+	ProductName string    `json:"product_name"`
 }
 
 type TrxForm struct {

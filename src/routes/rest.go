@@ -87,6 +87,7 @@ func Init(router *gin.Engine) {
 		{
 			_trx.GET("/", orders.OrderList)
 			_trx.POST("/", orders.OrderCreate)
+			_trx.DELETE("/:id", orders.OrderDelete)
 		}
 	}
 }
