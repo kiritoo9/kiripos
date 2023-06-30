@@ -86,7 +86,9 @@ func Init(router *gin.Engine) {
 		_trx := authorized.Group(("/orders"))
 		{
 			_trx.GET("/", orders.OrderList)
+			_trx.GET("/:id", orders.OrderDetail)
 			_trx.POST("/", orders.OrderCreate)
+			_trx.PUT("/", orders.OrderUpdate)
 			_trx.DELETE("/:id", orders.OrderDelete)
 		}
 	}

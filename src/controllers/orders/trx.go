@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"encoding/json"
 	"fmt"
 	"kiripos/src/configs"
 	"kiripos/src/helpers"
@@ -25,6 +26,9 @@ func _handleSearch(tx *gorm.DB, keywords string, startDate string, endDate strin
 			tx.Or("trx.deleted = ?", false)
 		}
 		tx.Where("LOWER("+searchFields[i]+") LIKE ?", "%"+keywords+"%")
+		if startDate != "" && endDate != "" {
+			tx.Where("trx.created_date::DATE BETWEEN ? AND ?", startDate, endDate)
+		}
 
 		branchId, errBranch := uuid.Parse(branchId)
 		if errBranch == nil {
@@ -90,7 +94,73 @@ func OrderList(c *gin.Context) {
 }
 
 func OrderDetail(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	var data models.Trx
+	res := configs.DB.
+		Table("trx").
+		Select("trx.id", "trx.user_id", "trx.customer_id", "trx.branch_id", "trx.code", "trx.total_qty", "trx.total_price", "trx.discount", "trx.discount_desc", "trx.status", "trx.created_date", "trx.note", "users.fullname AS user_name", "customers.name AS customer_name", "branches.name AS branch_name").
+		Joins("LEFT JOIN users ON users.id = trx.user_id").
+		Joins("LEFT JOIN customers ON customers.id = trx.customer_id").
+		Joins("LEFT JOIN branches ON branches.id = trx.branch_id").
+		Where("trx.deleted = ?", false).
+		Where("trx.id = ?", id).
+		First(&data)
+	if res.RowsAffected <= 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Data is not found",
+		})
+		return
+	}
+
+	var orderDetail []models.TrxDetails
+	configs.DB.Table("trx_items").
+		Select("trx_items.*", "products.name AS product_name", "products.images AS product_images").
+		Joins("LEFT JOIN products ON products.id = trx_items.product_id").
+		Where("trx_items.trx_id = ?", data.Id).Find(&orderDetail)
+
+	type details struct {
+		Id            uuid.UUID `json:"id"`
+		ProductId     uuid.UUID `json:"product_id"`
+		Qty           int       `json:"qty"`
+		Price         int       `json:"price"`
+		ProductName   string    `json:"product_name"`
+		ProductImages []string  `json:"product_images"`
+	}
+	var dataDetails []details
+	for i := range orderDetail {
+		var images []string
+		json.Unmarshal([]byte(orderDetail[i].ProductImages), &images)
+		for i := 0; i < len(images); i++ {
+			images[i] = helpers.GettRealPath(c, "products/"+images[i])
+		}
+
+		d := details{
+			Id:            orderDetail[i].Id,
+			ProductId:     orderDetail[i].ProductId,
+			Qty:           orderDetail[i].Qty,
+			Price:         orderDetail[i].Price,
+			ProductName:   orderDetail[i].ProductName,
+			ProductImages: images,
+		}
+		dataDetails = append(dataDetails, d)
+	}
+
+	response := map[string]interface{}{
+		"data":   data,
+		"detail": dataDetails,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Request Success",
+		"data":    response,
+	})
 }
 
 func OrderCreate(c *gin.Context) {
@@ -98,6 +168,13 @@ func OrderCreate(c *gin.Context) {
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
+		})
+		return
+	}
+
+	if body.CustomerName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Customer name cannot be empty",
 		})
 		return
 	}
@@ -252,7 +329,133 @@ func OrderCreate(c *gin.Context) {
 }
 
 func OrderUpdate(c *gin.Context) {
+	var body models.TrxForm
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	if strings.ToUpper(body.Status) == "S2" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Unable to update a paid order",
+		})
+		return
+	}
+
+	var order models.Trx
+	var orderDetail []models.TrxDetails
+
+	res := configs.DB.Table("trx").
+		Where("deleted = ?", false).
+		Where("id = ?", body.Id).First(&order)
+	if res.RowsAffected <= 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Data is not found",
+		})
+		return
+	}
+
+	err_detail := configs.DB.Table("trx_items").
+		Select("trx_items.*", "products.name AS product_name", "products.with_stock AS product_with_stock", "products.images AS product_images", "products.stock AS product_stock", "products.price AS product_price").
+		Joins("LEFT JOIN products ON products.id = trx_items.product_id").
+		Where("trx_items.trx_id = ?", order.Id).
+		Find(&orderDetail).Error
+	if err_detail != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_detail.Error(),
+		})
+		return
+	}
+
+	/*
+		Update items steps
+		1. update product stock by last trx_items
+		2. delete trx_items
+		3. re-insert trx_items
+	*/
+	var data_updated map[string]interface{}
+	err_update := configs.DB.Transaction(func(tx *gorm.DB) error {
+		var totalQty int = 0
+		var totalPrice int = 0
+		for i := range orderDetail {
+			if orderDetail[i].ProductWithStock {
+				var new_stock int = orderDetail[i].ProductStock + orderDetail[i].Qty
+				err_product := configs.DB.Model(&models.Products{}).
+					Where("id = ?", orderDetail[i].ProductId).
+					Update("stock", new_stock).Error
+				if err_product != nil {
+					return err_product
+				}
+			}
+		}
+
+		err_del_items := configs.DB.Exec("DELETE FROM trx_items WHERE trx_id = '" + order.Id.String() + "'").Error
+		if err_del_items != nil {
+			return err_del_items
+		}
+
+		for i := range body.Items {
+			var product models.Products
+			resprod := configs.DB.Select("id", "price", "with_stock", "stock").
+				Where("deleted = ?", false).
+				Where("id = ?", body.Items[i].ProductId).
+				First(&product)
+			if resprod.RowsAffected > 0 {
+				_items := map[string]interface{}{
+					"id":         uuid.New(),
+					"trx_id":     order.Id,
+					"product_id": product.Id,
+					"qty":        body.Items[i].Qty,
+					"price":      product.Price,
+				}
+				err_items := configs.DB.Table("trx_items").Create(&_items).Error
+				if err_items != nil {
+					return err_items
+				} else {
+					totalPrice += int(product.Price) * body.Items[i].Qty
+					totalQty += body.Items[i].Qty
+					if product.WithStock {
+						var _stock int = product.Stock - body.Items[i].Qty
+						err_update_product := configs.DB.Model(&models.Products{}).Where("id = ?", product.Id).Update("stock", _stock).Error
+						if err_update_product != nil {
+							return err_update_product
+						}
+					}
+				}
+			}
+		}
+
+		data_updated = map[string]interface{}{
+			"discount":      body.Discount,
+			"discount_desc": body.DiscountDesc,
+			"status":        body.Status,
+			"note":          body.Note,
+			"total_qty":     totalQty,
+			"total_price":   totalPrice,
+			"grand_total":   totalPrice - body.Discount,
+		}
+
+		err_update := configs.DB.Table("trx").Where("id = ?", body.Id).Updates(&data_updated).Error
+		if err_update != nil {
+			return err_update
+		}
+
+		return nil
+	})
+
+	if err_update != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_update.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":      "data_updated",
+		"data_updated": data_updated,
+	})
 }
 
 func OrderDelete(c *gin.Context) {
@@ -314,7 +517,7 @@ func OrderDelete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	c.JSON(http.StatusCreated, gin.H{
 		"message": "Data deleted",
 	})
 }

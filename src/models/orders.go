@@ -26,12 +26,16 @@ type Trx struct {
 }
 
 type TrxDetails struct {
-	Id          uuid.UUID `json:"id"`
-	TrxId       uuid.UUID `json:"trx_id"`
-	ProductId   uuid.UUID `json:"product_id"`
-	Qty         int       `json:"qty"`
-	Price       int       `json:"price"`
-	ProductName string    `json:"product_name"`
+	Id               uuid.UUID `json:"id"`
+	TrxId            uuid.UUID `json:"trx_id"`
+	ProductId        uuid.UUID `json:"product_id"`
+	Qty              int       `json:"qty"`
+	Price            int       `json:"price"`
+	ProductName      string    `json:"product_name"`
+	ProductImages    string    `json:"product_images,omitempty"`
+	ProductWithStock bool      `json:"product_with_stock,omitempty"`
+	ProductStock     int       `json:"product_stock,omitempty"`
+	ProductPrice     int       `json:"product_price,omitempty"`
 }
 
 type TrxForm struct {
@@ -41,7 +45,7 @@ type TrxForm struct {
 	Status       string           `json:"status" binding:"required"`
 	Note         string           `json:"note"`
 	Items        []TrxDetailsForm `json:"items" binding:"required"`
-	CustomerName string           `json:"customer_name" binding:"required"`
+	CustomerName string           `json:"customer_name,omitempty"`
 }
 
 type TrxDetailsForm struct {
