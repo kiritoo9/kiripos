@@ -82,6 +82,15 @@ func Init(router *gin.Engine) {
 			_customers.DELETE("/:id", masters.CustomerDelete)
 		}
 
+		_suppliers := authorized.Group(("/suppliers"))
+		{
+			_suppliers.GET("/", masters.SupplierList)
+			_suppliers.GET("/:id", masters.SupplierDetail)
+			_suppliers.POST("/", masters.SupplierInsert)
+			_suppliers.PUT("/", masters.SupplierUpdate)
+			_suppliers.DELETE("/:id", masters.SupplierDelete)
+		}
+
 		// TRANSACTIONS
 		_trx := authorized.Group(("/orders"))
 		{

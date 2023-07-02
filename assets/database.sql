@@ -123,11 +123,12 @@ CREATE TABLE IF NOT EXISTS trx_items (
 -- PURCHASE ORDER
 CREATE TABLE IF NOT EXISTS suppliers (
 	id uuid primary key,
+	code varchar(50),
 	name varchar(200),
 	phone varchar(15),
 	email varchar(100),
 	address text,
-	details text,
+	details jsonb default null,
 	deleted boolean default false,
 	created_date timestamp,
 	updated_date timestamp	
@@ -160,8 +161,6 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
 	product_id uuid,
 	qty numeric default 0,
 	price numeric default 0,
-	discount numeric default 0,
-	note text,
 	foreign key (purchase_order_id) references purchase_orders(id) on delete cascade,
 	foreign key (product_id) references products(id) on delete cascade
 );
