@@ -16,6 +16,7 @@ type PurchaseOrders struct {
 	TotalQty     int       `json:"total_qty"`
 	TotalPrice   int       `json:"total_price"`
 	Discount     int       `json:"discount"`
+	GrandTotal   int       `json:"grand_total"`
 	Status       string    `json:"status"`
 	Note         string    `json:"note"`
 	CreatedDate  time.Time `json:"created_date"`
@@ -34,10 +35,11 @@ type PurchaseOrderForm struct {
 }
 
 type PurchaseOrderItems struct {
-	Id        uuid.UUID `json:"id" gorm:"type:uuid;primary_key"`
-	OrderId   uuid.UUID `json:"order_id" binding:"required"`
-	ProductId uuid.UUID `json:"product_id" binding:"required"`
-	Qty       int       `json:"qty"`
-	Price     int       `json:"price,omitempty"`
-	LastStock int       `json:"last_stock,omitempty"`
+	Id              uuid.UUID `json:"id" gorm:"type:uuid;primary_key"`
+	PurchaseOrderId uuid.UUID `json:"purchase_order_id"`
+	ProductId       uuid.UUID `json:"product_id" binding:"required"`
+	Qty             int       `json:"qty"`
+	Price           int       `json:"price,omitempty"`
+	LastStock       int       `json:"last_stock,omitempty"`
+	ProductName     string    `json:"product_name,omitempty"`
 }

@@ -66,7 +66,11 @@ func PurchaseList(c *gin.Context) {
 
 	var count int64
 	var totalPage float64 = 1
-	configs.DB.Model(&models.PurchaseOrders{}).Distinct("id").Count(&count)
+	txcount := configs.DB.Model(&models.PurchaseOrders{}).Distinct("purcahse_orders.id").
+		Joins("LEFT JOIN suppliers ON suppliers.id = purchase_orders.supplier_id").
+		Joins("LEFT JOIN branches ON branches.id = purchase_orders.branch_id")
+	txcount = _purchaseSearch(tx, keywords, startDate, endDate, branchId)
+	txcount.Count(&count)
 	if count > 0 && limit > 0 {
 		var x float64 = float64(count)
 		var y float64 = float64(limit)
@@ -82,7 +86,52 @@ func PurchaseList(c *gin.Context) {
 }
 
 func PurchaseDetail(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
 
+	var data models.PurchaseOrders
+	res := configs.DB.Select("purchase_orders.*", "suppliers.name AS supplier_name", "branches.name AS branch_name").
+		Where("purchase_orders.deleted = ?", false).
+		Where("purchase_orders.id = ?", id).
+		Joins("LEFT JOIN suppliers ON suppliers.id = purchase_orders.supplier_id").
+		Joins("LEFT JOIN branches ON branches.id = purchase_orders.branch_id").
+		First(&data)
+	if res.RowsAffected <= 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Data is not found",
+		})
+		return
+	}
+
+	var items []models.PurchaseOrderItems
+	err_items := configs.DB.Select("purchase_order_items.*", "products.name AS product_name").
+		Joins("LEFT JOIN products ON products.id = purchase_order_items.product_id").
+		Where("purchase_order_items.purchase_order_id = ?", data.Id).Find(&items).Error
+	if err_items != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_items.Error(),
+		})
+		return
+	}
+
+	type Response struct {
+		Data  models.PurchaseOrders       `json:"data"`
+		Items []models.PurchaseOrderItems `json:"items"`
+	}
+	var response Response = Response{
+		Data:  data,
+		Items: items,
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Request Success",
+		"data":    response,
+	})
 }
 
 func PurchaseCreate(c *gin.Context) {
@@ -114,11 +163,11 @@ func PurchaseCreate(c *gin.Context) {
 			})
 			return
 		} else {
-			totalPrice += body.Items[i].Qty * int(product.Price)
+			totalPrice += body.Items[i].Qty * body.Items[i].Price
 			details = append(details, models.PurchaseOrderItems{
 				ProductId: body.Items[i].ProductId,
 				Qty:       body.Items[i].Qty,
-				Price:     int(product.Price),
+				Price:     body.Items[i].Price,
 				LastStock: product.Stock,
 			})
 		}
@@ -187,7 +236,7 @@ func PurchaseCreate(c *gin.Context) {
 			}
 			err := configs.DB.Model(&models.PurchaseOrderItems{}).Create(&detail).Error
 			if err != nil {
-				return nil
+				return err
 			}
 
 			if strings.ToUpper(fmt.Sprint(data_inserted["status"])) == "S2" {
@@ -215,7 +264,125 @@ func PurchaseCreate(c *gin.Context) {
 }
 
 func PurchaseUpdate(c *gin.Context) {
+	var body models.PurchaseOrderForm
 
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	var po models.PurchaseOrders
+	res := configs.DB.Where("deleted = ?", false).Where("id = ?", body.Id).First(&po)
+	if res.RowsAffected <= 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "Data is not found",
+		})
+		return
+	}
+
+	if po.Status != "S1" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "You can only update draft(S1) purchase_order",
+		})
+		return
+	}
+
+	var items []models.PurchaseOrderItems
+
+	err_items := configs.DB.Select("purchase_order_items.*", "products.stock AS last_stock").
+		Where("purchase_order_items.purchase_order_id = ?", po.Id).
+		Joins("LEFT JOIN products ON products.id = purchase_order_items.product_id").Find(&items).Error
+	if err_items != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_items.Error(),
+		})
+		return
+	}
+
+	var totalQty int = 0
+	var totalPrice int = 0
+	data_updated := map[string]interface{}{
+		"supplier_id":   body.SupplierId,
+		"purchase_date": body.PurchaseDate,
+		"discount":      body.Discount,
+		"status":        body.Status,
+		"note":          body.Note,
+		"total_qty":     0,
+		"total_price":   0,
+		"grand_total":   0,
+	}
+	err_update := configs.DB.Transaction(func(tx *gorm.DB) error {
+		if strings.ToUpper(body.Status) == "S2" {
+			for i := range items {
+				var new_stock = items[i].LastStock - items[i].Qty
+				err := configs.DB.Model(&models.Products{}).Where("id = ?", items[i].ProductId).Update("stock", new_stock).Error
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		err := configs.DB.Exec("DELETE FROM purchase_order_items WHERE purchase_order_id = '" + po.Id.String() + "'").Error
+		if err != nil {
+			return err
+		}
+
+		for i := range body.Items {
+			detail := map[string]interface{}{
+				"id":                uuid.New(),
+				"purchase_order_id": po.Id,
+				"product_id":        body.Items[i].ProductId,
+				"qty":               body.Items[i].Qty,
+				"price":             body.Items[i].Price,
+			}
+			err := configs.DB.Model(&models.PurchaseOrderItems{}).Create(&detail).Error
+			if err != nil {
+				return err
+			}
+
+			if strings.ToUpper(body.Status) == "S2" {
+				var product models.Products
+				err := configs.DB.Select("stock", "with_stock").Where("id = ?", body.Items[i].ProductId).First(&product).Error
+				if err != nil {
+					return err
+				}
+				if product.WithStock {
+					errprod := configs.DB.Model(&models.Products{}).
+						Where("id = ?", body.Items[i].ProductId).
+						Update("stock", product.Stock+body.Items[i].Qty).Error
+					if errprod != nil {
+						return errprod
+					}
+					totalQty += body.Items[i].Qty
+					totalPrice += body.Items[i].Price * body.Items[i].Qty
+				}
+			}
+		}
+
+		data_updated["total_qty"] = totalQty
+		data_updated["total_price"] = totalPrice
+		data_updated["grand_total"] = totalPrice - body.Discount
+		errupdate := configs.DB.Model(&models.PurchaseOrders{}).Where("id = ?", po.Id).Updates(&data_updated).Error
+		if errupdate != nil {
+			return errupdate
+		}
+
+		return nil
+	})
+
+	if err_update != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": err_update.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message":      "Data updated",
+		"data_updated": data_updated,
+	})
 }
 
 func PurchaseDelete(c *gin.Context) {
@@ -237,7 +404,7 @@ func PurchaseDelete(c *gin.Context) {
 	}
 
 	err_del := configs.DB.Transaction(func(tx *gorm.DB) error {
-		err := configs.DB.Where("id = ?", id).Update("deleted", true).Error
+		err := configs.DB.Model(&models.PurchaseOrders{}).Where("id = ?", id).Update("deleted", true).Error
 		if err != nil {
 			return err
 		}
@@ -255,7 +422,7 @@ func PurchaseDelete(c *gin.Context) {
 				if err_prod != nil {
 					return err_prod
 				}
-				var new_stock int = product.Stock + items[i].Qty
+				var new_stock int = product.Stock - items[i].Qty
 				err_update_product := configs.DB.Model(&models.Products{}).Where("id = ?", product.Id).Update("stock", new_stock).Error
 				if err_update_product != nil {
 					return err_update_product
