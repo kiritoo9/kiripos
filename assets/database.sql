@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 	total_qty numeric default 0,
 	total_price numeric default 0,
 	discount numeric default 0,
+	grand_total numeric default 0,
 	status char(2) default 'S1',
 	note text,
 	deleted boolean default false,
@@ -153,15 +154,15 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 	foreign key (branch_id) references branches(id) on delete cascade,
 	foreign key (supplier_id) references suppliers(id) on delete cascade
 );
-COMMENT ON COLUMN purchase_orders.status IS 'S1=draft, S2=confirm, S3=paid, S4=rejected';
-
+COMMENT ON COLUMN purchase_orders.status IS 'S1=draft, S2=paid, S3=rejected';
+ase
 CREATE TABLE IF NOT EXISTS purchase_order_items (
 	id uuid primary key,
 	purchase_order_id uuid,
 	product_id uuid,
 	qty numeric default 0,
 	price numeric default 0,
-	foreign key (purchase_order_id) references purchase_orders(id) on delete cascade,
+	foreign key (purch_order_id) references purchase_orders(id) on delete cascade,
 	foreign key (product_id) references products(id) on delete cascade
 );
 

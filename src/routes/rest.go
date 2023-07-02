@@ -100,5 +100,14 @@ func Init(router *gin.Engine) {
 			_trx.PUT("/", orders.OrderUpdate)
 			_trx.DELETE("/:id", orders.OrderDelete)
 		}
+
+		_purchase := authorized.Group(("/purchase"))
+		{
+			_purchase.GET("/", orders.PurchaseList)
+			_purchase.GET("/:id", orders.PurchaseDetail)
+			_purchase.POST("/", orders.PurchaseCreate)
+			_purchase.PUT("/", orders.PurchaseUpdate)
+			_purchase.DELETE("/:id", orders.PurchaseDelete)
+		}
 	}
 }
