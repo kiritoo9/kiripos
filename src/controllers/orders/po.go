@@ -16,8 +16,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func _purchaseSearch(tx *gorm.DB, keywords string, startDate string, endDate string, branchId string) *gorm.DB {
-	fields := []string{"purchase_orders.no_purchase", "suppliers.name", "branches.name"}
+func _purchaseSearch(tx *gorm.DB, keywords string, startDate string, endDate string, supplierId string) *gorm.DB {
+	fields := []string{"purchase_orders.no_purchase", "suppliers.name"}
 	for i := range fields {
 		if i == 0 {
 			tx.Where("purchase_orders.deleted = ?", false)
@@ -29,8 +29,8 @@ func _purchaseSearch(tx *gorm.DB, keywords string, startDate string, endDate str
 		if startDate != "" && endDate != "" {
 			tx.Where("LEFT(purchase_orders.purchase_date::TEXT, 10) BETWEEN ? AND ?", startDate, endDate)
 		}
-		if branchId != "" {
-			tx.Where("purchase_orders.branch_id = ?", branchId)
+		if supplierId != "" {
+			tx.Where("purchase_orders.supplier_id = ?", supplierId)
 		}
 	}
 	return tx
@@ -40,9 +40,9 @@ func PurchaseList(c *gin.Context) {
 	page, _ := strconv.ParseInt(c.Query("page"), 0, 0)
 	limit, _ := strconv.ParseInt(c.Query("limit"), 0, 0)
 	keywords := strings.ToLower(c.Query("keywords"))
-	startDate := c.Query("startDate")
-	endDate := c.Query("endDate")
-	branchId := c.Query("branchId")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+	supplierId := c.Query("supplier_id")
 	if page <= 0 {
 		page = 1
 	}
@@ -52,10 +52,9 @@ func PurchaseList(c *gin.Context) {
 	var offset int64 = (page * limit) - limit
 	var datas []models.PurchaseOrders
 	tx := configs.DB.Limit(int(limit)).Offset(int(offset)).Order("created_date ASC").
-		Select("purchase_orders.*", "suppliers.name AS supplier_name", "branches.name AS branch_name").
-		Joins("LEFT JOIN suppliers ON suppliers.id = purchase_orders.supplier_id").
-		Joins("LEFT JOIN branches ON branches.id = purchase_orders.branch_id")
-	tx = _purchaseSearch(tx, keywords, startDate, endDate, branchId)
+		Select("purchase_orders.*", "suppliers.name AS supplier_name").
+		Joins("LEFT JOIN suppliers ON suppliers.id = purchase_orders.supplier_id")
+	tx = _purchaseSearch(tx, keywords, startDate, endDate, supplierId)
 	err := tx.Find(&datas).Error
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -66,11 +65,17 @@ func PurchaseList(c *gin.Context) {
 
 	var count int64
 	var totalPage float64 = 1
-	txcount := configs.DB.Model(&models.PurchaseOrders{}).Distinct("purcahse_orders.id").
-		Joins("LEFT JOIN suppliers ON suppliers.id = purchase_orders.supplier_id").
-		Joins("LEFT JOIN branches ON branches.id = purchase_orders.branch_id")
-	txcount = _purchaseSearch(tx, keywords, startDate, endDate, branchId)
-	txcount.Count(&count)
+	txcount := configs.DB.Model(&models.PurchaseOrders{}).Distinct("purchase_orders.id").
+		Joins("LEFT JOIN suppliers ON suppliers.id = purchase_orders.supplier_id")
+	txcount = _purchaseSearch(txcount, keywords, startDate, endDate, supplierId)
+	errcount := txcount.Count(&count).Error
+	if errcount != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": errcount.Error(),
+		})
+		return
+	}
+
 	if count > 0 && limit > 0 {
 		var x float64 = float64(count)
 		var y float64 = float64(limit)

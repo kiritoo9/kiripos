@@ -5,6 +5,7 @@ import (
 	"kiripos/src/controllers/auth"
 	"kiripos/src/controllers/masters"
 	"kiripos/src/controllers/orders"
+	"kiripos/src/controllers/reports"
 	"kiripos/src/middlewares"
 
 	"github.com/gin-gonic/gin"
@@ -108,6 +109,14 @@ func Init(router *gin.Engine) {
 			_purchase.POST("/", orders.PurchaseCreate)
 			_purchase.PUT("/", orders.PurchaseUpdate)
 			_purchase.DELETE("/:id", orders.PurchaseDelete)
+		}
+
+		// REPORTS
+		_reports := authorized.Group(("/reports"))
+		{
+			_reports.GET("/dashboard", reports.Dashboard)
+			_reports.GET("/orders", reports.ReportOrder)
+			_reports.GET("/purchase", reports.ReportPurchase)
 		}
 	}
 }

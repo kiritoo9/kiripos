@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
 	deleted boolean default false,
 	created_date timestamp
 );
+INSERT INTO users(id,fullname,email,password,is_active,created_date) VALUES('78bb45e6-cfab-4846-aa01-856f21fe13f1','kirito','kirito@admin.com','$2a$14$21NzitwhP4LV3E.t8d0LPOjnyLE51FUCSLE2wQ0wdAt7v74dJA4AW',true.'2023-05-26 10:00:00');
 
 CREATE TABLE IF NOT EXISTS roles (
 	id uuid primary key,
@@ -28,6 +29,7 @@ CREATE TABLE IF NOT EXISTS user_roles (
 	foreign key (user_id) references users(id) on delete cascade,
 	foreign key (role_id) references roles(id) on delete cascade
 );
+INSERT INTO user_roles(id,user_id,role_id,created_date) VALUES('b88903f3-607c-47b0-be20-63f1ddf88bd9','78bb45e6-cfab-4846-aa01-856f21fe13f1','3613da52-f643-4108-83db-64a114714ba8','2023-05-26 10:00:00');
 
 CREATE TABLE IF NOT EXISTS branches (
 	id uuid primary key,
