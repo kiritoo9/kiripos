@@ -28,7 +28,7 @@ Password: kirito123
 
 ## Related Apps
 <ul>
-    <li><a href="#">Kiripos Web</a></li>
+    <li><a href="https://github.com/kiritoo9/kiripos-webapp">Kiripos Web</a></li>
     <li><a href="#">Kiripos Mobile</a></li>
 </ul>
 
